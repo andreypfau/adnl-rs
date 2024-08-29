@@ -5,7 +5,6 @@ use std::time::Duration;
 
 use anyhow::Result;
 use everscale_crypto::ed25519;
-use public_ip::addr;
 use tl_proto::TlRead;
 use tokio::net::UdpSocket;
 
