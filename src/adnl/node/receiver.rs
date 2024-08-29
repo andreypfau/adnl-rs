@@ -1,9 +1,11 @@
 use std::borrow::Cow;
+use std::net::{SocketAddr, SocketAddrV4};
 use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::Result;
 use everscale_crypto::ed25519;
+use public_ip::addr;
 use tl_proto::TlRead;
 use tokio::net::UdpSocket;
 
@@ -64,9 +66,9 @@ impl Node {
                     Either::Right(_) => break,
                 };
 
-                let len = match result {
+                let (len, addr) = match result {
                     Ok((0, _)) => continue,
-                    Ok((len, _)) => len,
+                    Ok((len, addr)) => (len, addr),
                     Err(e) => {
                         tracing::warn!("failed to receive data: {e}");
                         continue;
@@ -89,7 +91,7 @@ impl Node {
                     if let Err(error) = ctx
                         .node
                         .handle_received_data(
-                            PacketView::from(buffer.as_mut_slice()),
+                            PacketView::from((buffer.as_mut_slice(), addr)),
                             &ctx.message_subscribers,
                             &ctx.query_subscribers,
                         )
@@ -414,7 +416,22 @@ impl Node {
             )?;
 
             if let Some(list) = &packet.address {
-                let addr = parse_address_list(list, self.options.clock_tolerance_sec)?;
+                let addr = match parse_address_list(list, self.options.clock_tolerance_sec) {
+                    Ok(addr) => addr,
+                    Err(e) => {
+                        if let AdnlAddressListError::ListIsEmpty = e {
+                            match raw_packet.socket_addr() {
+                                SocketAddr::V4(addr) => addr,
+                                SocketAddr::V6(_) => {
+                                    // IPv6 is not supported
+                                    return Err(e.into())
+                                }
+                            }
+                        } else {
+                            return Err(e.into());
+                        }
+                    }
+                };
                 self.add_peer(
                     NewPeerContext::AdnlPacket,
                     local_id,

@@ -1,7 +1,9 @@
+use std::net::SocketAddr;
 use std::ops::{Index, IndexMut, Range, RangeFrom, RangeTo};
 
 pub struct PacketView<'a> {
     bytes: &'a mut [u8],
+    socket_addr: SocketAddr
 }
 
 impl<'a> PacketView<'a> {
@@ -18,6 +20,11 @@ impl<'a> PacketView<'a> {
     #[inline(always)]
     pub fn len(&self) -> usize {
         self.bytes.len()
+    }
+
+    #[inline(always)]
+    pub fn socket_addr(&self) -> SocketAddr {
+        self.socket_addr
     }
 
     pub fn remove_prefix(&mut self, prefix_len: usize) {
@@ -65,8 +72,8 @@ impl IndexMut<RangeFrom<usize>> for PacketView<'_> {
     }
 }
 
-impl<'a> From<&'a mut [u8]> for PacketView<'a> {
-    fn from(bytes: &'a mut [u8]) -> Self {
-        Self { bytes }
+impl<'a> From<(&'a mut [u8], SocketAddr)> for PacketView<'a> {
+    fn from(value: (&'a mut [u8], SocketAddr)) -> Self {
+        Self { bytes: value.0, socket_addr: value.1 }
     }
 }
